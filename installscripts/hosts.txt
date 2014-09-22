@@ -1,0 +1,7 @@
+fsw0.ose.opentlc.com
+fsw1.ose.opentlc.com
+fsw2.ose.opentlc.com
+
+eap0.ose.opentlc.com
+eap1.ose.opentlc.com
+eap2.ose.opentlc.com
