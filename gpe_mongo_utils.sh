@@ -11,6 +11,8 @@ main() {
         exit 1;
     fi
 
+    checkparams
+
     mongoUser=`cat /etc/openshift/broker.conf | egrep -i 'MONGO_USER='`
     mongoUser=${mongoUser#*=}
     mongoUser=${mongoUser//\"}
@@ -23,34 +25,49 @@ main() {
     mongoDb=${mongoDb#*=}
     mongoDb=${mongoDb//\"}
 
-    echo -en "\n mongoUser = $mongoUser : mongoPasswd = $mongoPasswd : mongoDb = $mongoDb\n"
+    # echo -en "\n mongoUser = $mongoUser : mongoPasswd = $mongoPasswd : mongoDb = $mongoDb\n"
 
-    
-    # findGearByAccountName
-    countApps
-}
-
-findGearByAccountName() {
-    #mongo --quiet --username $mongoUser --password $mongoPasswd $mongoDb --eval 'printjson(db.applications.find( { members: { $elemMatch: { n: "althomas-redhat.com" } } }, { gears: 1 } ) )'
-    mongo --username $mongoUser --password $mongoPasswd $mongoDb findGearsByAccountName.js
+    if [ "$command" = "countApps" ]; then
+        countApps
+    elif [ "$command" = "findGearByAccountName" ]; then
+        findGearByAccountName
+    elif [ "$command" = "listAllAccountNames" ]; then
+        listAllAccountNames
+    else
+        echo -en "\n** The following is not a valid command:  $command"
+        help
+        exit 1
+    fi
 }
 
 countApps() {
     mongo --username $mongoUser --password $mongoPasswd $mongoDb --eval "db.applications.count()"
 }
 
+findGearByAccountName() {
+    checkssoId
+    mongo --username $mongoUser --password $mongoPasswd $mongoDb --eval "printjson(db.applications.find( { members: { \$elemMatch: { n: \"$ssoId\" } } }, { gears: 1 } ).shellPrint() )"
+}
+listAllAccountNames(){
+    mongo --username $mongoUser --password $mongoPasswd $mongoDb --eval 'printjson( db.cloud_users.find( { }, { login: 1 } ).shellPrint() )'
+}
+
+
 checkparams() {
     if [ "$help" = "help" ]; then
         help
         exit 0
     fi
-    if [ "x$userId" = "x" ]; then
-        echo -en "\n** need to specify a value for: userId\n"
+    if [ "x$command" = "x" ]; then
+        echo -en "\n** need to specify a value for: -command=\n"
         help
         exit 1
     fi
-    if [ "x$command" = "x" ]; then
-        echo -en "\n** need to specify a value for: command\n"
+
+}
+checkssoId() {
+    if [ "x$ssoId" = "x" ]; then
+        echo -en "\n** need to specify a value for: -ssoId=\n"
         help
         exit 1
     fi
@@ -58,10 +75,13 @@ checkparams() {
 
 help() {
     echo -en "\n\ngpe_student_mgmt\n"
-    echo -en "\nSYNOPSIS\n\texecute:  gpe_student_mgmt -userId=[userId] -command=[command]\n"
+    echo -en "\nSYNOPSIS\n\texecute:  gpe_student_mgmt -command=[command] \n"
     echo -en "\n\t Commands:"
     echo -en "\n\t\t countApps                  :   returns # of total apps managed by this OSE environment"
     echo -en "\n\t\t findGearByAccountName      :   returns gear details given an OPENTLC-SSO id"
+    echo -en "\n\t\t                                - requires additional command line parameter of :  -ssoId=[opentlc-sso id]"
+    echo -en "\n\t\t listAllAccountNames        :   returns list of OPENTLC-SSO account ids registered with the OSE broker"
+    echo -en "\n\n"
 }
 
 for var in $@
@@ -70,8 +90,8 @@ do
         *help*)
             help=help
             ;;
-        -userId=*)
-            userId=`echo $var | cut -f2 -d\=`
+        -ssoId=*)
+            ssoId=`echo $var | cut -f2 -d\=`
             ;;
         -command=*)
             command=`echo $var | cut -f2 -d\=`
