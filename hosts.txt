@@ -5,3 +5,10 @@ fsw2.ose.opentlc.com
 eap0.ose.opentlc.com
 eap1.ose.opentlc.com
 eap2.ose.opentlc.com
+
+osedev0.ose.opentlc.com
+osedev1.ose.opentlc.com
+osedev2.ose.opentlc.com
+
+fuse0.ose.opentlc.com
+pds0.ose.opentlc.com
