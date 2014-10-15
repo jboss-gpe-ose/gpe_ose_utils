@@ -1,0 +1,9 @@
+#!/bin/sh
+
+for account in $(cat accounts.txt)
+do
+  if [[ $account != \#* ]] ; then
+    echo -en "\n\n*********	$account\n"
+    oo-admin-ctl-user -l $account -c
+  fi
+done
