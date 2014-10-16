@@ -33,6 +33,8 @@ main() {
         findGearByAccountName
     elif [ "$command" = "listAllAccountNames" ]; then
         listAllAccountNames
+    elif [ "$command" = "findAccountByGearUUID" ]; then
+        findAccountByGearUUID
     else
         echo -en "\n** The following is not a valid command:  $command"
         help
@@ -48,6 +50,11 @@ findGearByAccountName() {
     checkssoId
     mongo --username $mongoUser --password $mongoPasswd $mongoDb --eval "printjson(db.applications.find( { members: { \$elemMatch: { n: \"$ssoId\" } } }, { gears: 1 } ).shellPrint() )"
 }
+
+findAccountByGearUUID() {
+    mongo --username $mongoUser --password $mongoPasswd $mongoDb --eval "printjson(db.applications.find( { _id: ObjectId(\"$gearId\") }, { members: 1 } ).shellPrint() )"
+}
+
 listAllAccountNames(){
     mongo --username $mongoUser --password $mongoPasswd $mongoDb --eval 'printjson( db.cloud_users.find( { }, { login: 1 } ).shellPrint() )'
 }
@@ -81,6 +88,9 @@ help() {
     echo -en "\n\t\t findGearByAccountName      :   returns gear details given an OPENTLC-SSO id"
     echo -en "\n\t\t                                - requires additional command line parameter of :  -ssoId=[opentlc-sso id]"
     echo -en "\n\t\t listAllAccountNames        :   returns list of OPENTLC-SSO account ids registered with the OSE broker"
+    echo -en "\n\t\t                                - requires additional command line parameter of :  -ssoId=[opentlc-sso id]"
+    echo -en "\n\t\t findAccountByGearUUID      :   returns OPENTLC-SSO account id of owner of a given gear"
+    echo -en "\n\t\t                                - requires additional command line parameter of :  -gearId=[gear uuid]"
     echo -en "\n\n"
 }
 
@@ -96,8 +106,10 @@ do
         -command=*)
             command=`echo $var | cut -f2 -d\=`
             ;;
+        -gearId=*)
+            gearId=`echo $var | cut -f2 -d\=`
+            ;;
 *)  echo "unknown command line parameter: $var .  Execute --help for details of valid parameters. "; exit 1;
     esac
 done
 main
-
