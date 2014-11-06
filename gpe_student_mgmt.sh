@@ -5,29 +5,67 @@
 
 # NOTE:  this utility must reside on an OSE 2.1 broker
 
-# TO-DO:  investigate:  http://software.frodo.looijaard.name/getopt/docs/getopt-parse.bash
-
 bold="\033[1m"
 normal="\033[0m"
 
 main() {
-    checkparams
     if [ "$op" = "disenroll" ]; then
+        checkparams
         checkUserExists
         disenroll
+    elif [ "$op" = "batchdisenroll" ]; then
+        batchdisenroll
     elif [ "$op" = "enroll" ]; then
+        checkparams
         if [ ! -f /etc/openshift/broker.conf ]; then
             echo -en "\n/etc/openshift/broker.conf does not exist.  Please ensure this utility resides on a OSE 2.1 broker\n"
-         exit 1;
+            exit 1
         fi
-
         enroll
     fi
 }
 
+check() {
+    echo -en "\ncheck(): checking for $userId in $gearSize\n"
+    arr=`/usr/sbin/oo-admin-ctl-user -l $userId | egrep -i '  gear sizes:'|sed -e "s/.*:\s//"|sed -e "s/,//g"`
+    if [ -n "$arr" ]; then
+        for gs in $arr;
+        do
+           if [ "$gs" == "$gearSize" ]; then
+            echo "ERROR: User $userId is already a member of $gearSize"
+            exit 111
+           fi
+        done
+    fi
+}
+
+batchdisenroll() {
+    mongoUser=`cat /etc/openshift/broker.conf | egrep -i 'MONGO_USER='`
+    mongoUser=${mongoUser#*=}
+    mongoUser=${mongoUser//\"}
+
+    mongoPasswd=`cat /etc/openshift/broker.conf | egrep -i 'MONGO_PASSWORD='`
+    mongoPasswd=${mongoPasswd#*=}
+    mongoPasswd=${mongoPasswd//\"}
+
+    mongoDb=`cat /etc/openshift/broker.conf | egrep -i 'MONGO_DB='`
+    mongoDb=${mongoDb#*=}
+    mongoDb=${mongoDb//\"}
+    echo -en "\nbatchdisenroll() mongoUser=$mongoUser mongoPasswd=$mongoPasswd mongoDb=$mongoDb \n "
+
+    for gearId in $(cat gears.txt)
+    do
+        if [[ $gearId != \#* ]] ; then
+        eval userString=\" `mongo --username $mongoUser --password $mongoPasswd $mongoDb --eval "printjson(db.applications.find( { _id: ObjectId(\"$gearId\") }, { members: 1 } ).shellPrint() )"` \"
+        userId=`echo $userString | cut -d':' -f 8 | cut -d' ' -f 2 | cut -d',' -f 1`
+        echo -en "\n\n*********     $gearId userString=$userString\n"
+        disenroll
+    fi
+    done
+}
+
 disenroll() {
     echo -en "\ndisenroll(): disenrolling $userId from all courses\n"
-
     arr=`/usr/sbin/oo-admin-ctl-domain -l $userId | egrep -i '^name:'`
     if [ -n "$arr" ]; then
         for app in $arr;
@@ -38,7 +76,6 @@ disenroll() {
          fi
        done
     fi
-
     arr=`/usr/sbin/oo-admin-ctl-user -l $userId | egrep -i '  gear sizes:'|sed -e "s/.*:\s//"|sed -e "s/,//g"`
     if [ -n "$arr" ]; then
         for gearSize in $arr;
@@ -59,7 +96,8 @@ enroll() {
         echo "Error, user $userId does not exist in SSO.  Exiting."
         exit 1
     fi
-    echo -en "\nenroll():  enrolling the $userId to course with gearSize = $gearSize\n"
+    check
+    echo -en "\nenroll():  enrolling $userId to course with gearSize = $gearSize\n"
     /usr/sbin/oo-admin-ctl-user -c -l $userId --addgearsize $gearSize > /dev/null 2>&1
     if [ $? -ne 0 ]
     then
@@ -159,6 +197,9 @@ do
             ;;
         -disenroll*)
             op=disenroll
+            ;;
+        -batch_disenroll*)
+            op=batchdisenroll
             ;;
         *)  echo "unknown command line parameter: $var .  Execute -help for details of valid parameters. "; exit 1;
     esac
