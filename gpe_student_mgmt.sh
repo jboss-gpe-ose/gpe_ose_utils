@@ -13,8 +13,10 @@ main() {
         checkparams
         checkUserExists
         disenroll
-    elif [ "$op" = "batchdisenroll" ]; then
-        batchdisenroll
+    elif [ "$op" = "batchdisenrollbygears" ]; then
+        batchdisenrollbygears
+    elif [ "$op" = "batchdisenrollbyaccounts" ]; then
+        batchdisenrollbyaccounts
     elif [ "$op" = "enroll" ]; then
         checkparams
         if [ ! -f /etc/openshift/broker.conf ]; then
@@ -39,7 +41,7 @@ check() {
     fi
 }
 
-batchdisenroll() {
+batchdisenrollbygears() {
     mongoUser=`cat /etc/openshift/broker.conf | egrep -i 'MONGO_USER='`
     mongoUser=${mongoUser#*=}
     mongoUser=${mongoUser//\"}
@@ -51,16 +53,25 @@ batchdisenroll() {
     mongoDb=`cat /etc/openshift/broker.conf | egrep -i 'MONGO_DB='`
     mongoDb=${mongoDb#*=}
     mongoDb=${mongoDb//\"}
-    echo -en "\nbatchdisenroll() mongoUser=$mongoUser mongoPasswd=$mongoPasswd mongoDb=$mongoDb \n "
+    echo -en "\nbatchdisenrollbygears() mongoUser=$mongoUser mongoPasswd=$mongoPasswd mongoDb=$mongoDb \n "
 
     for gearId in $(cat gears.txt)
     do
         if [[ $gearId != \#* ]] ; then
-        eval userString=\" `mongo --username $mongoUser --password $mongoPasswd $mongoDb --eval "printjson(db.applications.find( { _id: ObjectId(\"$gearId\") }, { members: 1 } ).shellPrint() )"` \"
-        userId=`echo $userString | cut -d':' -f 8 | cut -d' ' -f 2 | cut -d',' -f 1`
-        echo -en "\n\n*********     $gearId userString=$userString\n"
-        disenroll
-    fi
+            eval userString=\" `mongo --username $mongoUser --password $mongoPasswd $mongoDb --eval "printjson(db.applications.find( { _id: ObjectId(\"$gearId\") }, { members: 1 } ).shellPrint() )"` \"
+            userId=`echo $userString | cut -d':' -f 8 | cut -d' ' -f 2 | cut -d',' -f 1`
+            echo -en "\n\n*********     $gearId userId=$userId\n"
+            disenroll
+        fi
+    done
+}
+
+batchdisenrollbyaccounts() {
+    for userId in $(cat accounts.txt)
+    do
+        if [[ $userId != \#* ]] ; then
+            disenroll
+        fi
     done
 }
 
@@ -164,6 +175,8 @@ help() {
     getgearSizes
     echo -e " $bold$validGearSizes$normal"
     echo -e "\t-disenroll         - disenroll a student from all courses"
+    echo -e "\t-batch_disenroll_by_gears   - disenroll students corresponding to a list of gear UUIDs found in a file called:  gears.txt"
+    echo -e "\t-batch_disenroll_by_accounts   - disenroll students found in a file called:  accounts.txt"
     echo -e "\nEXAMPLES:"
     echo -e " Disenroll user$bold jbride-redhat.com$normal by destroying all apps and stripping all gear"
     echo -e "  sizes:"
@@ -198,8 +211,11 @@ do
         -disenroll*)
             op=disenroll
             ;;
-        -batch_disenroll*)
-            op=batchdisenroll
+        -batch_disenroll_by_gears*)
+            op=batchdisenrollbygears
+            ;;
+        -batch_disenroll_by_accounts*)
+            op=batchdisenrollbyaccounts
             ;;
         *)  echo "unknown command line parameter: $var .  Execute -help for details of valid parameters. "; exit 1;
     esac
